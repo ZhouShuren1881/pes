@@ -11,7 +11,7 @@ import org.springframework.stereotype.Component;
 @Aspect
 @Component
 public class BeanExceptionCollector {
-    Logger logger = LoggerFactory.getLogger("BeanExceptionCollector");
+    Logger logger = LoggerFactory.getLogger(BeanExceptionCollector.class);
 
     @Pointcut("execution(public * cn.edu.xmu.pes.controller.Major.*(..))")
     public void adaptor(){ }

@@ -1,30 +1,56 @@
-package cn.edu.xmu.pes.litessh;
+package cn.edu.xmu.pes.liteservice;
 
+import cn.edu.xmu.pes.liteservice.models.UserInfoClass;
 import com.jcraft.jsch.ChannelExec;
 import com.jcraft.jsch.JSch;
 import com.jcraft.jsch.JSchException;
 import com.jcraft.jsch.Session;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Repository;
 
+import javax.annotation.PostConstruct;
 import java.io.IOException;
+import java.util.Date;
 import java.util.Properties;
 
+@Repository
 public class LiteSSHCaller {
-    public static boolean runNew(String... args) {
-        String bashname = System.getProperty("admin.host.process.bashname");
+    @Value("$(admin.pesroot)")
+    static String pesroot;
 
+    @Value("$(admin.host.process.bashpath)")
+    static String bashpath;
+
+    @Value("$(admin.host.process.feature)")
+    static String feature;
+
+    @Value("$(admin.host.username)")
+    static String username;
+
+    @Value("$(admin.host.password)")
+    static String password;
+
+    @Value("$(admin.host.ip)")
+    static String ip;
+
+
+    @PostConstruct
+    public void postConstruct() { }
+
+    public static boolean runNew(String taskDirPath, String... args) {
         var session = getSession();
         if (session == null) return false;
 
         /* * WARNING: setsid xx & 命令如果在后台有输出，会导致进程卡死(bug of JSch) * */
         /* * WARNING: 所以需要将输出重定向到xxx.log中 * */
-        // setsid ./FlyGoose.sh OUTPUT_Directory mallGateway adminGateway > OUTPUT_Directory&
-        String cmdTemplate = "setsid %bashname %arg0 %arg1 %arg2 >OUTPUT_Directory.log 2>&1 &";
+        String cmdTemplate = "mkdir -p %dir; cd %dir; setsid %bashname %arg0 %arg1 >pes.log 2>&1 &";
         try {
             String result = execGetResult(session,
-                    cmdTemplate.replace("%bashname", bashname)
-                            .replace("%arg0", args[0])
-                            .replace("%arg1", args[1])
-                            .replace("%arg2", args[2])
+                    cmdTemplate
+                            .replace("%bashname", bashpath)
+                            .replace("%dir",    taskDirPath)
+                            .replace("%arg0",   args[0])
+                            .replace("%arg1",   args[1])
             );
             return result != null;
         } finally {
@@ -33,35 +59,42 @@ public class LiteSSHCaller {
     }
 
     public static boolean killall() {
-        String feature = System.getProperty("admin.host.process.feature");
-
         var session = getSession();
         if (session == null) return false;
 
         // ps -ef | grep FlyGoose | grep -v grep |cut -c 9-15|xargs kill -9
-        String cmdTemplate = "ps -ef | grep %arg0 | grep -v grep | cut -c 9-15 | xargs kill -9";
+        String cmdTemplate = "ps -ef | grep %arg | grep -v grep | cut -c 9-15 | xargs kill -9";
         try {
-            String result = execGetResult(session, cmdTemplate.replace("%arg0", feature));
+            String result = execGetResult(session, cmdTemplate.replace("%arg", feature));
             return result != null;
         } finally {
             session.disconnect();
         }
     }
 
+
+    static Date lastQueryTime = new Date();
+    static int lastQueryResult = 0;
+    /**
+     * getRunningPrcessNumber 带缓存功能，3秒内最多连接SSH一次
+     */
     public static int getRunningPrcessNumber() {
-        String feature = System.getProperty("admin.host.process.feature");
+        if (lastQueryTime.getTime()+3*1000 < new Date().getTime())
+            return lastQueryResult;
 
         var session = getSession();
         if (session == null) return -1;
 
         // ps -ef | grep FlyGoose | grep -v grep  | wc -l
-        String cmdTemplate = "ps -ef | grep %arg0 | grep -v grep  | wc -l";
+        String cmdTemplate = "ps -ef | grep %arg | grep -v grep  | wc -l";
         try {
-            String numString = execGetResult(session, cmdTemplate.replace("%arg0", feature));
+            String numString = execGetResult(session, cmdTemplate.replace("%arg", feature));
             if (numString == null) return -1;
             if (numString.equals("")) return 0;
             try {
                 int num = Integer.parseInt(numString);
+                lastQueryTime = new Date();
+                lastQueryResult = num;
                 return num;
             } catch (NumberFormatException e) { return -1; }
         } finally {
@@ -72,9 +105,6 @@ public class LiteSSHCaller {
     static Session getSession() {
         Session session = null;
 
-        String username = System.getProperty("admin.host.username");
-        String password = System.getProperty("admin.host.password");
-        String ip = System.getProperty("admin.host.ip");
         int port = 22;
 
         try {
@@ -85,7 +115,7 @@ public class LiteSSHCaller {
             var config = new Properties();
             config.put("StrictHostKeyChecking", "no");
             session.setConfig(config);
-            session.setTimeout(3000);
+            session.setTimeout(2000);
             session.connect();
         } catch (JSchException e) {
             return null;

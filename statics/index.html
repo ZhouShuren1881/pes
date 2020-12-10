@@ -5,70 +5,184 @@
     <meta charset="UTF-8">
     <title>测试系统登录</title>
     <script src="https://cdn.jsdelivr.net/npm/vue/dist/vue.js"></script>
-    <!-- <script src="https://unpkg.com/vue-router@2.0.0/dist/vue-router.js"></script> -->
     <script src="https://unpkg.com/axios/dist/axios.js"></script>
-
 </head>
 
 <body>
     <h1>OOAD - 提交测试</h1>
 
-    <div id="loginbox">
-        用户名<br>
-        <input v-model="account" placeholder="登录账号"><br>
-        <br>
-        密码<br>
-        <input v-model="password" placeholder="登录密码"><br>
-        <br>
-        <button v-on:click="login()">登录</button>
-        <button v-on:click="logout()">退出登录</button><br>
-        <br>
-        <div v-if="notice != '' && notice != undefined"><b>通知</b> {{notice}}</div>
+    <div id="app">
+        <div>
+            组名（可任意取，用于标识测试ID）
+            <span v-if="isNull(gnamewarn)" style="font-size:small;color:red">字段不能为空</span><br>
+            <input v-model="gname" placeholder="组名"><br>
+            <h2>新测试</h2>
+            商城网关
+            <span v-if="isNull(mallwarn)" style="font-size:small;color:red">字段不正确</span><br>
+            <input v-model="mallgateway" placeholder="商城网关(ip:port)"><br>
+            <br>
+            管理员网关
+            <span v-if="isNull(adminwarn)" style="font-size:small;color:red">字段不正确</span><br>
+            <input v-model="admingateway" placeholder="管理员网关(ip:port)"><br>
+            <br>
+            <button v-on:click="newtask()">提交测试</button>
+            <br>
+            <p v-if="isNull(notice)"><b>通知</b> {{notice}}</p>
+        </div>
+        <div>
+            <h2>服务器负载&nbsp;&nbsp;<span style="font-size:small" v-on:click="getrunningnumber()">[刷新]</span></h2>
+            <p>当前并发量：{{running_number}}</p>
+            <p v-if="isNull(runnum_notice)"><b>通知</b> {{runnum_notice}}</p>
+        </div>
+        <div>
+            <h2>进度&nbsp;&nbsp;<span style="font-size:small" v-on:click="progress()">[刷新]</span></h2>
+            <p v-if="isNull(progress_notice)"><b>通知</b> {{progress_notice}}</p>
+            <h3>测试任务状态</h3>
+            <p v-if="status==-2">查询前请输入组名</p>
+            <p v-if="status==-1">正在查询...</p>
+            <p v-if="status==0">尚未提交任务</p>
+            <p v-if="status==1">任务正常运行/已终止</p>
+            <h3>文件列表</h3>
+            <h4 v-on:click="update()">手动刷新filelist</h4>
+            <p v-if="status==1" v-for="(item, i) in files">
+                <span>报告{{i}}</span>
+                <a :href=item.online>下载</a>
+                <a :href=item.download>在线查看</a>
+            </p>
+            <p v-if="status!=1">文件列表为空</p>
+        </div>
     </div>
     <script>
+        function filehref(gname, i, yes) {
+            return "/report.txt?file=" + i + (yes ? "&online=yes" : "") + "&groupname=" + encodeURI(gname);
+        }
+        function IsNull(v) {
+            if (v == "" || v == null || v == undefined || v.trim() == "")
+                return true;
+            else
+                return false;
+        }
         var noticeChecking;
         new Vue({
-            el: '#loginbox',
+            el: '#app',
             data: {
-                account: "G003",
-                password: "333",
                 notice: "",
+                runnum_notice: "",
+                progress_notice: "",
+
+                gname: "aaaa",
+                mallgateway: "192.168.40.1:8899",
+                admingateway: "192.168.40.1:8899",
+
+                gnamewarn: "x",
+                mallwarn: "x",
+                adminwarn: "x",
+
+                status: -2,
+                filenum: 3,
+                files: [],
+
+                running_number: 0,
             },
             mounted() {
-                /* Do Nothing */
             },
             methods: {
-                login: function () {
-                    var model = {
-                        account: this.account,
-                        password: this.password,
-                    }
+                isNull: function (v) {
+                    return IsNull(v)
+                },
+                getrunningnumber: function() {
+                    this.runnum_notice = ""
                     axios
-                        .post('/ajax/login', model)
+                        .post('/ajax/runningnumber', {
+                            timeout: 5000,
+                        })
                         .then(response => {
-                            console.log('/ajax/login', response.data)
-                            if (response.data.error == undefined) {
-                                this.notice = response.data.info
-                                window.location.href = "/pannel"
-                            } else {
-                                this.notice = response.data.error
-                            }
+                            console.log('/ajax/runningnumber', response.data)
+                            this.status = response.data.status
+                            this.filenum = response.data.filenum
+                            update()
                         })
                         .catch(error => {
-                            this.notice = "芜湖，前端写错了或者服务器挂了."
-                            console.log('/ajax/login', error.response.data)
+                            if (error.response==undefined) return
+                            this.runnum_notice = error.response.data.error != null
+                                ? error.response.data.error
+                                : "芜湖，前端写错了或者服务器挂了."
+                            console.log('/ajax/runningnumber', error.response.data)
                         })
                 },
-                logout: function () {
+                progress: function () {
+                    this.progress_notice = ""
+                    if (IsNull(this.gname)) {
+                        this.status = 2
+                        return
+                    }
+
+                    var newRequestParams = {
+                        groupname: this.gname,
+                    }
                     axios
-                        .post('/ajax/logout')
+                        .post('/ajax/progress', newRequestParams)
                         .then(response => {
-                            console.log(response.data)
+                            console.log('/ajax/progress', response.data)
+                            this.status = response.data.status
+                            this.filenum = response.data.filenum
+                            this.update()
                         })
                         .catch(error => {
-                            console.log(error.response.data)
+                            if (error.response==undefined) return
+                            this.progress_notice = error.response.data.error != null
+                                ? error.response.data.error
+                                : "芜湖，前端写错了或者服务器挂了."
+                            console.log('/ajax/progress', error.response.data)
                         })
-                        .finally(() => this.loading = false)
+                },
+                update: function () {
+                    //console.log(this.files)
+                    this.files = []
+                    for (var i = 0; i < this.filenum; i++) {
+                        var model = {
+                            online: filehref(this.gname, i, true),
+                            download: filehref(this.gname, i, true)
+                        }
+                        this.files[i] = model
+                    }
+                },
+                newtask: function () {
+                    this.notice = ""
+                    if (IsNull(this.gname)) {
+                        this.gnamewarn = ""
+                        return;
+                    } else this.gnamewarn = "x"
+
+                    var pattern = /(25[0-5]|2[0-4]\d|[0-1]\d{2}|[1-9]?\d)\.(25[0-5]|2[0-4]\d|[0-1]\d{2}|[1-9]?\d)\.(25[0-5]|2[0-4]\d|[0-1]\d{2}|[1-9]?\d)\.(25[0-5]|2[0-4]\d|[0-1]\d{2}|[1-9]?\d):[1-9][0-9]{3,4}/
+                    if (IsNull(this.mallgateway) || this.mallgateway.search(pattern) != 0) {
+                        this.mallwarn = ""
+                        return;
+                    } else this.mallwarn = "x"
+
+                    if (IsNull(this.admingateway) || this.admingateway.search(pattern) != 0) {
+                        this.adminwarn = ""
+                        return;
+                    } else this.adminwarn = "x"
+
+                    var newRequestParams = {
+                        groupname: this.gname,
+                        mallGateway: this.mallgateway,
+                        adminGateway: this.admingateway,
+                    }
+                    axios
+                        .post('/ajax/newtask', newRequestParams)
+                        .then(response => {
+                            console.log('/ajax/newtask', response.data)
+                            this.notice = response.data.info
+                        })
+                        .catch(error => {
+                            if (error.response==undefined) return
+                            this.notice = error.response.data.error != null
+                                ? error.response.data.error
+                                : "芜湖，前端写错了或者服务器挂了."
+                            console.log('/ajax/newtask', error.response.data)
+                        })
                 },
             },
         })

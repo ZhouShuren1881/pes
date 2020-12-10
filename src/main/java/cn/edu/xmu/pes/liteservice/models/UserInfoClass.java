@@ -1,4 +1,4 @@
-package cn.edu.xmu.pes.litessh;
+package cn.edu.xmu.pes.liteservice.models;
 
 import com.jcraft.jsch.UserInfo;
 

@@ -1,12 +1,9 @@
 package cn.edu.xmu.pes.liteservice;
 
 import cn.edu.xmu.pes.liteservice.models.*;
-import cn.edu.xmu.pes.liteservice.models.ProgressMsg;
-import cn.edu.xmu.pes.litessh.LiteSSHCaller;
+import cn.edu.xmu.pes.liteservice.req_models.*;
 import com.alibaba.fastjson.JSON;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.stereotype.Component;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.PostConstruct;
@@ -14,26 +11,32 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.IOException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
 
+// TODO validate applcation.properties
+
 @Service
-public class Lite {
-    @Value("${admin.fileroot}")
+public class LiteService {
+    @Value("${admin.pesroot}")
     String unsolvedroot;
     String pesroot;
 
-    @Value("${admin.host.process.bashname}")
-    String bashname;
+    @Value("${admin.key}")
+    String key;
+
 
     /**
      *
      */
     @PostConstruct
     public void postConstruct() {
+
+        // Linux程序，在Windows下兼容调试
         if ( unsolvedroot.startsWith("~")
                 && System.getProperty("os.name").
                 toLowerCase().startsWith("win")) {
@@ -44,9 +47,10 @@ public class Lite {
             pesroot = new File( unsolvedroot ).getAbsolutePath();
         }
 
-        // 保证根文件夹存在
+        // 重复创建保证根文件夹存在
         var dir = new File(pesroot);
         dir.mkdirs();
+
     }
 
 
@@ -54,36 +58,41 @@ public class Lite {
      *
      */
     public void newtask(HttpServletRequest request, HttpServletResponse response) throws Throwable {
-        String groupname = request.getParameter("groupname");
-        String mallGateway = request.getParameter("mallGateway");
-        String adminGateway = request.getParameter("adminGateway");
+        var model = JSON.parseObject(new String(request.getInputStream().readAllBytes()), NewTaskModel.class);
+        String groupname = model.groupname;
+        String mallGateway = model.mallGateway;
+        String adminGateway = model.adminGateway;
         if (groupname == null
                 || !HttpParaValidator.checkIpport(mallGateway)
                 || !HttpParaValidator.checkIpport(adminGateway))  {
-            serveReplyObject(response, new ErrorMsg("没有设置组名(Groupname)或者地址格式不对."));
+            serveError(response, 403, "没有设置组名(Groupname)或者地址格式不对.");
             return;
         }
 
-        String foldername = getDirectionNameWithBase64(groupname);
+        String taskDirPath = getDirectionNameWithBase64(groupname);
 
-        File folderinfo = new File(foldername);
-        if (folderinfo.exists()) {
-            serveReplyObject(response, new ErrorMsg("这个命名下已经有一个测试任务了"));
+        File dir = new File(taskDirPath);
+        if (dir.exists()) {
+            serveError(response, 404, "这个命名下已经有一个测试任务了");
             return;
         }
+        // Linux程序，在Windows下兼容调试
+        if ( System.getProperty("os.name"). toLowerCase().startsWith("win") )
+            dir.mkdirs();
 
-        LiteSSHCaller.runNew(foldername, mallGateway, adminGateway);
-        serveReplyObject(response, new InfoMsg("执行成功，请记住您的Key"));
+        LiteSSHCaller.runNew(taskDirPath, mallGateway, adminGateway);
+        serveReplyObject(response, new InfoMsg("执行成功，请记住您的组名"));
     }
+
 
     /**
      *
      */
     public void progress(HttpServletRequest request, HttpServletResponse response) throws Throwable {
-
-        String groupname = request.getParameter("groupname");
+        var model = JSON.parseObject(new String(request.getInputStream().readAllBytes()), ProgressModel.class);
+        String groupname = model.groupname;
         if (groupname == null)  {
-            serveReplyObject(response, new ErrorMsg("没有设置组名(Groupname)."));
+            serveError(response, 403, "没有设置组名.");
             return;
         }
 
@@ -107,10 +116,10 @@ public class Lite {
     public void runningnumber(HttpServletRequest request, HttpServletResponse response) throws Throwable {
         int num = LiteSSHCaller.getRunningPrcessNumber();
         if (num == -1) {
-            serveReplyObject(response, new ErrorMsg("服务器错误"));
+            serveError(response, 503, "sss服务器错误");
             return;
         }
-        serveReplyObject(response, new RunningNumberModel(num));
+        serveReplyObject(response, new RunningNumberMsg(num));
     }
 
 
@@ -118,15 +127,16 @@ public class Lite {
      *
      */
     public void killall(HttpServletRequest request, HttpServletResponse response) throws Throwable {
-        String key = request.getParameter("key");
+        var model = JSON.parseObject(new String(request.getInputStream().readAllBytes()), KillallModel.class);
+        String key = model.key;
 
-        if (!bashname.equals(key)) {
-            serveReplyObject(response, new ErrorMsg("Key错误"));
+        if (!this.key.equals(key)) {
+            serveError(response, 403, "管理员Key错误");
             return;
         }
 
         if (!LiteSSHCaller.killall()) {
-            serveReplyObject(response, new ErrorMsg("服务器错误，无法在SSH中杀死进程"));
+            serveError(response, 503, "服务器错误，无法在SSH中杀死进程");
             return;
         }
         serveReplyObject(response, new InfoMsg("成功杀死所有进程"));
@@ -142,30 +152,39 @@ public class Lite {
         String groupname = request.getParameter("groupname");
         String online = request.getParameter("online");
         if (str_fileindex == null || groupname == null)  {
-            serve404(response);
+            serveError(response, 403, "找不到所指定的文件");
             return;
         }
 
-        int fileindex = Integer.parseInt(str_fileindex);
+        int fileindex = 0;
+        try {
+            fileindex = Integer.parseInt(str_fileindex);
+        } catch (Exception e) {
+            serveError(response, 403, "找不到所指定的文件");
+            return;
+        }
+
         String foldername = getDirectionNameWithBase64(groupname);
         List<String> filepathList = getFiles(foldername);
         if (filepathList == null || fileindex < 0 || fileindex >= filepathList.size()) {
-            serve404(response);
+            serveError(response, 403, "找不到所指定的文件");
             return;
         }
 
-        String content = "";
+        byte[] content = null;
         try {
             content = getFileContent(filepathList.get(fileindex));
-        } catch (Exception e) {
-            serve404(response);
+        } catch (Exception e) { }
+        if (content == null) {
+            serveError(response, 403, "指定的文件内容为空");
+            return;
         }
 
         response.setStatus(200);
         response.setContentType("text/plain;charset=utf-8");
         response.setHeader("content-disposition",(online==null?"attachment":"inline")+";fileName="
                 + URLEncoder.encode("report_"+fileindex+".txt", StandardCharsets.UTF_8));
-        response.getWriter().write( content );
+        response.getOutputStream().write(content);
 
     }
 
@@ -174,22 +193,27 @@ public class Lite {
      *
      */
     public void serveStaticHtml(HttpServletRequest request, HttpServletResponse response, String filename) throws Throwable {
-        String s = getFileContent("statics/"+filename);
-        if (s == null) {
-            serve404(response);
+        byte[] content = getFileContent("statics/"+filename);
+        if (content == null) {
+            serveError(response, 403, "找不到所指定的文件");
             return;
         }
         response.setStatus(200);
         response.setContentType("text/html;charset=utf-8");
-        response.getWriter().write(s);
+        response.getOutputStream().write(content);
     }
 
 
 
-    String getFileContent(String filepath) throws Throwable {
+    byte[] getFileContent(String filepath) {
         File f = new File(filepath);
-        String s = new String(new FileInputStream(f).readAllBytes());
-        return null;
+        byte[] s = null;
+        try {
+            s= new FileInputStream(f).readAllBytes();
+        } catch (IOException e) {
+            System.out.println(e.getMessage());
+        }
+        return s;
     }
 
     List<String> getFiles(String path) {
@@ -208,21 +232,20 @@ public class Lite {
 
     String getDirectionNameWithBase64(String s) {
         String f = Base64.getEncoder().encodeToString(s.getBytes());
-        f.replace('+', '-');
-        f.replace('/', '.');
+        if (f.length() > 40) f = f.substring(0, 40);
+        f.replace('+', '_');
+        f.replace('/', '_');
         return pesroot+"/"+f;
     }
 
-    void serve404(HttpServletResponse response) {
-        response.setStatus(404);
-    }
-
-    void serveReply(HttpServletResponse response, String reply) throws Throwable {
-        response.setStatus(200);
-        response.getWriter().write(reply);
+    void serveError(HttpServletResponse response, int status, String reply) throws Throwable {
+        response.setContentType("application/json;charset=utf-8");
+        response.setStatus(status);
+        response.getWriter().write( JSON.toJSONString(new ErrorMsg(reply)) );
     }
 
     void serveReplyObject(HttpServletResponse response, Object object) throws Throwable {
+        response.setContentType("application/json;charset=utf-8");
         response.setStatus(200);
         response.getWriter().write(JSON.toJSONString(object));
     }
