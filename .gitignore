@@ -1,0 +1,9 @@
+*.log
+*.iml
+.idea/
+.mvn/
+.history/
+target/
+logs/
+.DS_Store
+application-dev.yaml
