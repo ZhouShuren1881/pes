@@ -1,4 +1,4 @@
-java -Dspan=100 -cp ~/pesserver/action/Goose-1.0.jar Goose
+java -Dspan=$1 -cp ~/pesserver/action/Goose-1.0.jar Goose
 
 #output:
 # 1: 100
