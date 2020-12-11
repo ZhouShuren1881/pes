@@ -3,7 +3,7 @@
 
 <head>
     <meta charset="UTF-8">
-    <title>测试系统登录</title>
+    <title>测试系统</title>
     <script src="https://cdn.jsdelivr.net/npm/vue/dist/vue.js"></script>
     <script src="https://unpkg.com/axios/dist/axios.js"></script>
 </head>
@@ -54,7 +54,7 @@
     </div>
     <script>
         function filehref(gname, i, yes) {
-            return "/report.txt?file=" + i + (yes ? "&online=yes" : "") + "&groupname=" + encodeURI(gname);
+            return "/report?file=" + i + (yes ? "&online=yes" : "") + "&groupname=" + encodeURI(gname);
         }
         function IsNull(v) {
             if (v == "" || v == null || v == undefined || v.trim() == "")
@@ -70,7 +70,7 @@
                 runnum_notice: "",
                 progress_notice: "",
 
-                gname: "aaaa",
+                gname: "xxxfdsf",
                 mallgateway: "192.168.40.1:8899",
                 admingateway: "192.168.40.1:8899",
 
@@ -98,9 +98,7 @@
                         })
                         .then(response => {
                             console.log('/ajax/runningnumber', response.data)
-                            this.status = response.data.status
-                            this.filenum = response.data.filenum
-                            update()
+                            this.running_number = response.data.number
                         })
                         .catch(error => {
                             if (error.response==undefined) return

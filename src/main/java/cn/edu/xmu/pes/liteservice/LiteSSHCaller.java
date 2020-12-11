@@ -1,10 +1,13 @@
 package cn.edu.xmu.pes.liteservice;
 
+import cn.edu.xmu.pes.controller.BeanExceptionCollector;
 import cn.edu.xmu.pes.liteservice.models.UserInfoClass;
 import com.jcraft.jsch.ChannelExec;
 import com.jcraft.jsch.JSch;
 import com.jcraft.jsch.JSchException;
 import com.jcraft.jsch.Session;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Repository;
 
@@ -15,35 +18,37 @@ import java.util.Properties;
 
 @Repository
 public class LiteSSHCaller {
-    @Value("$(admin.pesroot)")
-    static String pesroot;
+    Logger logger = LoggerFactory.getLogger(LiteSSHCaller.class);
 
-    @Value("$(admin.host.process.bashpath)")
-    static String bashpath;
+    @Value("${admin.pesroot}")
+    String pesroot;
 
-    @Value("$(admin.host.process.feature)")
-    static String feature;
+    @Value("${admin.host.process.bashpath}")
+    String bashpath;
 
-    @Value("$(admin.host.username)")
-    static String username;
+    @Value("${admin.host.process.feature}")
+    String feature;
 
-    @Value("$(admin.host.password)")
-    static String password;
+    @Value("${admin.host.username}")
+    String username;
 
-    @Value("$(admin.host.ip)")
-    static String ip;
+    @Value("${admin.host.password}")
+    String password;
+
+    @Value("${admin.host.ip}")
+    String ip;
 
 
     @PostConstruct
     public void postConstruct() { }
 
-    public static boolean runNew(String taskDirPath, String... args) {
+    public boolean runNew(String taskDirPath, String... args) {
         var session = getSession();
         if (session == null) return false;
 
         /* * WARNING: setsid xx & 命令如果在后台有输出，会导致进程卡死(bug of JSch) * */
         /* * WARNING: 所以需要将输出重定向到xxx.log中 * */
-        String cmdTemplate = "mkdir -p %dir; cd %dir; setsid %bashname %arg0 %arg1 >pes.log 2>&1 &";
+        String cmdTemplate = "mkdir -p %dir; cd %dir; setsid %bashname %dir %arg0 %arg1 >/dev/null 2>&1 &";
         try {
             String result = execGetResult(session,
                     cmdTemplate
@@ -58,7 +63,7 @@ public class LiteSSHCaller {
         }
     }
 
-    public static boolean killall() {
+    public boolean killall() {
         var session = getSession();
         if (session == null) return false;
 
@@ -73,13 +78,13 @@ public class LiteSSHCaller {
     }
 
 
-    static Date lastQueryTime = new Date();
-    static int lastQueryResult = 0;
+    Date lastQueryTime = new Date(1000000);
+    int lastQueryResult = 0;
     /**
      * getRunningPrcessNumber 带缓存功能，3秒内最多连接SSH一次
      */
-    public static int getRunningPrcessNumber() {
-        if (lastQueryTime.getTime()+3*1000 < new Date().getTime())
+    public int getRunningPrcessNumber() {
+        if (lastQueryTime.getTime()+6*1000 >= new Date().getTime())
             return lastQueryResult;
 
         var session = getSession();
@@ -90,6 +95,7 @@ public class LiteSSHCaller {
         try {
             String numString = execGetResult(session, cmdTemplate.replace("%arg", feature));
             if (numString == null) return -1;
+            numString = numString.trim();
             if (numString.equals("")) return 0;
             try {
                 int num = Integer.parseInt(numString);
@@ -102,7 +108,7 @@ public class LiteSSHCaller {
         }
     }
 
-    static Session getSession() {
+    Session getSession() {
         Session session = null;
 
         int port = 22;
@@ -123,7 +129,7 @@ public class LiteSSHCaller {
         return session;
     }
 
-    static String execGetResult(Session session, String cmd) {
+    String execGetResult(Session session, String cmd) {
         ChannelExec channelExec = null;
         try {
             channelExec = (ChannelExec) session.openChannel("exec");

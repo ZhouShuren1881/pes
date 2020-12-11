@@ -3,6 +3,9 @@ package cn.edu.xmu.pes.liteservice;
 import cn.edu.xmu.pes.liteservice.models.*;
 import cn.edu.xmu.pes.liteservice.req_models.*;
 import com.alibaba.fastjson.JSON;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -22,13 +25,21 @@ import java.util.List;
 
 @Service
 public class LiteService {
+    Logger logger = LoggerFactory.getLogger(LiteService.class);
+
     @Value("${admin.pesroot}")
-    String unsolvedroot;
-    String pesroot;
+    String rawroot;
+    String masterPesroot;
+    String slavePesroot;
 
     @Value("${admin.key}")
     String key;
 
+    LiteSSHCaller ssh;
+
+    public LiteService(@Autowired LiteSSHCaller ssh) {
+        this.ssh = ssh;
+    }
 
     /**
      *
@@ -37,18 +48,18 @@ public class LiteService {
     public void postConstruct() {
 
         // Linux程序，在Windows下兼容调试
-        if ( unsolvedroot.startsWith("~")
-                && System.getProperty("os.name").
-                toLowerCase().startsWith("win")) {
-            pesroot = new File(
-                    System.getProperty("user.home") + unsolvedroot.substring(1)
+        if ( rawroot.startsWith("~")
+                && System.getProperty("os.name").toLowerCase().startsWith("win")) {
+            masterPesroot = new File(
+                    System.getProperty("user.home") + rawroot.substring(1)
             ).getAbsolutePath();
         } else {
-            pesroot = new File( unsolvedroot ).getAbsolutePath();
+            masterPesroot = new File(rawroot).getAbsolutePath();
         }
+        slavePesroot = rawroot;
 
         // 重复创建保证根文件夹存在
-        var dir = new File(pesroot);
+        var dir = new File(masterPesroot);
         dir.mkdirs();
 
     }
@@ -69,18 +80,22 @@ public class LiteService {
             return;
         }
 
-        String taskDirPath = getDirectionNameWithBase64(groupname);
+        String slaveTaskDirPath  = getSlaveBase64Path( groupname);
+        String masterTaskDirPath = getMasterBase64Path(groupname);
 
-        File dir = new File(taskDirPath);
+        File dir = new File(masterTaskDirPath);
         if (dir.exists()) {
             serveError(response, 404, "这个命名下已经有一个测试任务了");
             return;
         }
-        // Linux程序，在Windows下兼容调试
-        if ( System.getProperty("os.name"). toLowerCase().startsWith("win") )
-            dir.mkdirs();
 
-        LiteSSHCaller.runNew(taskDirPath, mallGateway, adminGateway);
+        // 主服务器先建一个文件夹
+        new File(masterTaskDirPath).mkdirs();
+
+        if (!ssh.runNew(slaveTaskDirPath, mallGateway, adminGateway)) {
+            serveError(response, 503, "任务异常终止");
+            return;
+        }
         serveReplyObject(response, new InfoMsg("执行成功，请记住您的组名"));
     }
 
@@ -96,7 +111,7 @@ public class LiteService {
             return;
         }
 
-        String foldername = getDirectionNameWithBase64(groupname);
+        String foldername = getMasterBase64Path(groupname);
 
         File folderinfo =  new File(foldername);
         if (!folderinfo.exists() || !folderinfo.isDirectory()) {
@@ -114,9 +129,9 @@ public class LiteService {
      *
      */
     public void runningnumber(HttpServletRequest request, HttpServletResponse response) throws Throwable {
-        int num = LiteSSHCaller.getRunningPrcessNumber();
+        int num = ssh.getRunningPrcessNumber();
         if (num == -1) {
-            serveError(response, 503, "sss服务器错误");
+            serveError(response, 503, "服务器错误");
             return;
         }
         serveReplyObject(response, new RunningNumberMsg(num));
@@ -135,7 +150,7 @@ public class LiteService {
             return;
         }
 
-        if (!LiteSSHCaller.killall()) {
+        if (!ssh.killall()) {
             serveError(response, 503, "服务器错误，无法在SSH中杀死进程");
             return;
         }
@@ -164,7 +179,7 @@ public class LiteService {
             return;
         }
 
-        String foldername = getDirectionNameWithBase64(groupname);
+        String foldername = getMasterBase64Path(groupname);
         List<String> filepathList = getFiles(foldername);
         if (filepathList == null || fileindex < 0 || fileindex >= filepathList.size()) {
             serveError(response, 403, "找不到所指定的文件");
@@ -230,12 +245,20 @@ public class LiteService {
         return files;
     }
 
-    String getDirectionNameWithBase64(String s) {
+    String getSlaveBase64Path(String s) {
         String f = Base64.getEncoder().encodeToString(s.getBytes());
         if (f.length() > 40) f = f.substring(0, 40);
         f.replace('+', '_');
         f.replace('/', '_');
-        return pesroot+"/"+f;
+        return slavePesroot +"/"+f;
+    }
+
+    String getMasterBase64Path(String s) {
+        String f = Base64.getEncoder().encodeToString(s.getBytes());
+        if (f.length() > 40) f = f.substring(0, 40);
+        f.replace('+', '_');
+        f.replace('/', '_');
+        return masterPesroot +"/"+f;
     }
 
     void serveError(HttpServletResponse response, int status, String reply) throws Throwable {

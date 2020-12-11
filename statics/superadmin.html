@@ -1,4 +1,168 @@
-<h1>管理员面板：杀死所有进程</h1>
-管理员Key<br><input id="key" name="key"><br>
-<br>
-<button>确认杀死所有进程?</button>
+<!doctype html>
+<html lang="zh">
+
+<head>
+    <meta charset="UTF-8">
+    <title>管理员面板</title>
+    <script src="https://cdn.jsdelivr.net/npm/vue/dist/vue.js"></script>
+    <script src="https://unpkg.com/axios/dist/axios.js"></script>
+</head>
+
+<body>
+    <h1>管理员面板：杀死所有进程</h1>
+
+    <div id="app">
+        <div>
+            管理员网关
+            <span v-if="isNull(adminwarn)" style="font-size:small;color:red">字段不正确</span><br>
+            <input v-model="admingateway" placeholder="管理员网关(ip:port)"><br>
+            <br>
+            <button v-on:click="newtask()">确认杀死所有进程</button>
+            <br>
+            <p v-if="isNull(notice)"><b>通知</b> {{notice}}</p>
+        </div>
+        <div>
+            <h2>服务器负载&nbsp;&nbsp;<span style="font-size:small" v-on:click="getrunningnumber()">[刷新]</span></h2>
+            <p>当前并发量：{{running_number}}</p>
+            <p v-if="isNull(runnum_notice)"><b>通知</b> {{runnum_notice}}</p>
+        </div>
+    </div>
+    <script>
+        function filehref(gname, i, yes) {
+            return "/report?file=" + i + (yes ? "&online=yes" : "") + "&groupname=" + encodeURI(gname);
+        }
+        function IsNull(v) {
+            if (v == "" || v == null || v == undefined || v.trim() == "")
+                return true;
+            else
+                return false;
+        }
+        var noticeChecking;
+        new Vue({
+            el: '#app',
+            data: {
+                notice: "",
+                runnum_notice: "",
+                progress_notice: "",
+
+                gname: "ftgfyy",
+                mallgateway: "192.168.40.1:8899",
+                admingateway: "192.168.40.1:8899",
+
+                gnamewarn: "x",
+                mallwarn: "x",
+                adminwarn: "x",
+
+                status: -2,
+                filenum: 3,
+                files: [],
+
+                running_number: 0,
+            },
+            mounted() {
+            },
+            methods: {
+                isNull: function (v) {
+                    return IsNull(v)
+                },
+                getrunningnumber: function() {
+                    this.runnum_notice = ""
+                    axios
+                        .post('/ajax/runningnumber', {
+                            timeout: 5000,
+                        })
+                        .then(response => {
+                            console.log('/ajax/runningnumber', response.data)
+                            this.status = response.data.status
+                            this.filenum = response.data.filenum
+                            update()
+                        })
+                        .catch(error => {
+                            if (error.response==undefined) return
+                            this.runnum_notice = error.response.data.error != null
+                                ? error.response.data.error
+                                : "芜湖，前端写错了或者服务器挂了."
+                            console.log('/ajax/runningnumber', error.response.data)
+                        })
+                },
+                progress: function () {
+                    this.progress_notice = ""
+                    if (IsNull(this.gname)) {
+                        this.status = 2
+                        return
+                    }
+
+                    var newRequestParams = {
+                        groupname: this.gname,
+                    }
+                    axios
+                        .post('/ajax/progress', newRequestParams)
+                        .then(response => {
+                            console.log('/ajax/progress', response.data)
+                            this.status = response.data.status
+                            this.filenum = response.data.filenum
+                            this.update()
+                        })
+                        .catch(error => {
+                            if (error.response==undefined) return
+                            this.progress_notice = error.response.data.error != null
+                                ? error.response.data.error
+                                : "芜湖，前端写错了或者服务器挂了."
+                            console.log('/ajax/progress', error.response.data)
+                        })
+                },
+                update: function () {
+                    //console.log(this.files)
+                    this.files = []
+                    for (var i = 0; i < this.filenum; i++) {
+                        var model = {
+                            online: filehref(this.gname, i, true),
+                            download: filehref(this.gname, i, true)
+                        }
+                        this.files[i] = model
+                    }
+                },
+                newtask: function () {
+                    this.notice = ""
+                    if (IsNull(this.gname)) {
+                        this.gnamewarn = ""
+                        return;
+                    } else this.gnamewarn = "x"
+
+                    var pattern = /(25[0-5]|2[0-4]\d|[0-1]\d{2}|[1-9]?\d)\.(25[0-5]|2[0-4]\d|[0-1]\d{2}|[1-9]?\d)\.(25[0-5]|2[0-4]\d|[0-1]\d{2}|[1-9]?\d)\.(25[0-5]|2[0-4]\d|[0-1]\d{2}|[1-9]?\d):[1-9][0-9]{3,4}/
+                    if (IsNull(this.mallgateway) || this.mallgateway.search(pattern) != 0) {
+                        this.mallwarn = ""
+                        return;
+                    } else this.mallwarn = "x"
+
+                    if (IsNull(this.admingateway) || this.admingateway.search(pattern) != 0) {
+                        this.adminwarn = ""
+                        return;
+                    } else this.adminwarn = "x"
+
+                    var newRequestParams = {
+                        groupname: this.gname,
+                        mallGateway: this.mallgateway,
+                        adminGateway: this.admingateway,
+                    }
+                    axios
+                        .post('/ajax/newtask', newRequestParams)
+                        .then(response => {
+                            console.log('/ajax/newtask', response.data)
+                            this.notice = response.data.info
+                        })
+                        .catch(error => {
+                            if (error.response==undefined) return
+                            this.notice = error.response.data.error != null
+                                ? error.response.data.error
+                                : "芜湖，前端写错了或者服务器挂了."
+                            console.log('/ajax/newtask', error.response.data)
+                        })
+                },
+            },
+        })
+    </script>
+
+</body>
+
+</html>

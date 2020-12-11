@@ -46,7 +46,7 @@ public class Major {
         lite.serveStaticHtml(request, response, "superadmin.html");
     }
 
-    @RequestMapping("/report.txt") // ?file=1 (使用遍历文件夹，然后在map中查找值);?groupname=...;?online=...
+    @RequestMapping("/report") // ?file=1 (使用遍历文件夹，然后在map中查找值);?groupname=...;?online=...
     public void report(HttpServletRequest request, HttpServletResponse response) throws Throwable {
         lite.report(request, response);
     }
