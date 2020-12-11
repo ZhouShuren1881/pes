@@ -36,16 +36,6 @@ public class Major {
         lite.killall(request, response);
     }
 
-    @RequestMapping("/")
-    public void root(HttpServletRequest request, HttpServletResponse response) throws Throwable {
-        lite.serveStaticHtml(request, response, "index.html");
-    }
-
-    @RequestMapping("/superadmin")
-    public void superadmin(HttpServletRequest request, HttpServletResponse response) throws Throwable {
-        lite.serveStaticHtml(request, response, "superadmin.html");
-    }
-
     @RequestMapping("/report") // ?file=1 (使用遍历文件夹，然后在map中查找值);?groupname=...;?online=...
     public void report(HttpServletRequest request, HttpServletResponse response) throws Throwable {
         lite.report(request, response);

@@ -211,7 +211,8 @@ public class LiteService {
 
 
     /**
-     *
+     * 之前静态文件文件夹名字是statics/ 现在改成static/ .
+     * 此函数暂时废弃
      */
     public void serveStaticHtml(HttpServletRequest request, HttpServletResponse response, String filename) throws Throwable {
         byte[] content = getFileContent("statics/"+filename);
