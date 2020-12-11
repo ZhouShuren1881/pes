@@ -3,42 +3,31 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width,initial-scale=1.2">
+    <meta name="viewport" content="width=device-width,initial-scale=1.0">
     <title>管理员面板</title>
     <script src="https://cdn.jsdelivr.net/npm/vue/dist/vue.js"></script>
     <script src="https://unpkg.com/axios/dist/axios.js"></script>
+    <link rel="stylesheet" href="/base.css">
 </head>
 
 <body>
     <h1>管理员面板</h1>
 
     <div class="outbox">
-        <div id="killer">
+        <div class="lspan" id="killer">
             <h2>杀死所有测试进程</h2>
-            <p>请输入管理员密码</p>
+            <span>请输入管理员密码</span><br>
             <input v-model="key" placeholder="key"><br>
-            <p><button v-on:click="kill()" class="small"> 确认 </button></p>
-            <p v-if="!isNull(notice)"><b>通知 </b><span class="small red">{{notice}}</span></p>
+            <br>
+            <button v-on:click="kill()" class="small"> 确认 </button>
+            <span v-if="!isNull(notice)"><b>通知 </b><span class="small red">{{notice}}</span></span>
         </div>
-        <div id="run_listener">
+        <div class="lspan" id="run_listener">
             <h2>服务器负载&nbsp;&nbsp;</h2>
             <p>当前并发量：{{result}} </p>
-            <p><button class="small" v-on:click="getrunningnumber()"> 刷新负载 </button></p>
+            <span><button class="small" v-on:click="getrunningnumber()"> 刷新负载 </button></span>
         </div>
     </div>
-    <style>
-        .outbox {
-            padding: 10px;
-        }
-
-        .small {
-            font-size: small;
-        }
-
-        .red {
-            color: red;
-        }
-    </style>
     <script>
         function IsNull(v) {
             return (v == "" || v == null || v == undefined || v.trim() == "")

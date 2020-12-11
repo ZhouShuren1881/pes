@@ -3,10 +3,11 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width,initial-scale=1.2">
+    <meta name="viewport" content="width=device-width,initial-scale=1.0">
     <title>测试系统</title>
     <script src="https://cdn.jsdelivr.net/npm/vue/dist/vue.js"></script>
     <script src="https://unpkg.com/axios/dist/axios.js"></script>
+    <link rel="stylesheet" href="/base.css">
 </head>
 
 <body>
@@ -15,26 +16,29 @@
     <div class="outbox">
         <div id="app">
             <div class="lspan">
-                组名（可任意取，用于标识测试ID）
+                <h2>组名</h2>
+                <span class="small">组名任意取，用于标识测试及找回测试数据</span>
                 <span v-if="!isNull(gnamewarn)" class="small red">{{gnamewarn}}</span><br>
                 <input v-model="gname" placeholder="组名"><br>
+            </div>
+            <div class="lspan">
                 <h2>新测试</h2>
-                商城网关
+                <span>商城网关</span>
                 <span v-if="!isNull(mallwarn)" class="small red">{{mallwarn}}</span><br>
-                <input v-model="mallgateway" placeholder="商城网关(ip:port)"><br>
+                <input v-model="mallgateway" placeholder="商城网关(ip:port)" class="small"><br>
                 <br>
-                管理员网关
+                <span>管理员网关</span>
                 <span v-if="!isNull(adminwarn)" class="small red">{{adminwarn}}</span><br>
-                <input v-model="admingateway" placeholder="管理员网关(ip:port)"><br>
+                <input v-model="admingateway" placeholder="管理员网关(ip:port)" class="small"><br>
                 <br>
                 <button v-on:click="newtask()"> 提交测试 </button>
                 <br>
-                <p v-if="!isNull(notice)"><b>通知</b> <span class="small">{{notice}}</span></p>
+                <p v-if="!isNull(notice)"><b>通知：</b> <span class="small">{{notice}}</span></p>
             </div>
             <div class="lspan">
                 <h2>进度</h2>
                 <button class="small" v-on:click="progress()"> 刷新进度 </button>
-                <p v-if="!isNull(progress_notice)"><b>通知</b> <span class="small">{{progress_notice}}</span></p>
+                <p v-if="!isNull(progress_notice)"><b>通知：</b> <span class="small">{{progress_notice}}</span></p>
                 <h3 v-if="status!=-2">测试任务状态</h3>
                 <p class="small" v-if="status==-1">正在查询...</p>
                 <p class="small" v-if="status==0">尚未提交任务</p>
@@ -56,19 +60,6 @@
             <p><button class="small" v-on:click="getrunningnumber()"> 刷新负载 </button></p>
         </div>
     </div>
-    <style>
-        .outbox {
-            padding: 10px;
-        }
-
-        .small {
-            font-size: small;
-        }
-
-        .red {
-            color: red;
-        }
-    </style>
     <script>
         function filehref(gname, i, yes) {
             return "/report?file=" + i + (yes ? "&online=yes" : "") + "&groupname=" + encodeURI(gname);
