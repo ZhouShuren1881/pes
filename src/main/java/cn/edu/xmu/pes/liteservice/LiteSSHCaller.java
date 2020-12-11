@@ -1,6 +1,5 @@
 package cn.edu.xmu.pes.liteservice;
 
-import cn.edu.xmu.pes.controller.BeanExceptionCollector;
 import cn.edu.xmu.pes.liteservice.models.UserInfoClass;
 import com.jcraft.jsch.ChannelExec;
 import com.jcraft.jsch.JSch;
@@ -40,7 +39,9 @@ public class LiteSSHCaller {
 
 
     @PostConstruct
-    public void postConstruct() { }
+    public void postConstruct() {
+        getSession();
+    }
 
     public boolean runNew(String taskDirPath, String... args) {
         var session = getSession();
@@ -48,19 +49,15 @@ public class LiteSSHCaller {
 
         /* * WARNING: setsid xx & 命令如果在后台有输出，会导致进程卡死(bug of JSch) * */
         /* * WARNING: 所以需要将输出重定向到xxx.log中 * */
-        String cmdTemplate = "mkdir -p %dir; cd %dir; setsid %bashname %dir %arg0 %arg1 >/dev/null 2>&1 &";
-        try {
-            String result = execGetResult(session,
-                    cmdTemplate
-                            .replace("%bashname", bashpath)
-                            .replace("%dir",    taskDirPath)
-                            .replace("%arg0",   args[0])
-                            .replace("%arg1",   args[1])
-            );
-            return result != null;
-        } finally {
-            session.disconnect();
-        }
+        String cmdTemplate = "mkdir -p %dir 1>/dev/null 2>&1; cd %dir; setsid %bashname %dir %arg0 %arg1 >/dev/null 2>&1 &";
+        String result = execGetResult(session,
+                cmdTemplate
+                        .replace("%bashname", bashpath)
+                        .replace("%dir",    taskDirPath)
+                        .replace("%arg0",   args[0])
+                        .replace("%arg1",   args[1])
+        );
+        return result != null;
     }
 
     public boolean killall() {
@@ -69,16 +66,12 @@ public class LiteSSHCaller {
 
         // ps -ef | grep FlyGoose | grep -v grep |cut -c 9-15|xargs kill -9
         String cmdTemplate = "ps -ef | grep %arg | grep -v grep | cut -c 9-15 | xargs kill -9";
-        try {
-            String result = execGetResult(session, cmdTemplate.replace("%arg", feature));
-            return result != null;
-        } finally {
-            session.disconnect();
-        }
+        String result = execGetResult(session, cmdTemplate.replace("%arg", feature));
+        return result != null;
     }
 
 
-    Date lastQueryTime = new Date(1000000);
+    Date lastQueryTime = new Date(3661000);
     int lastQueryResult = 0;
     /**
      * getRunningPrcessNumber 带缓存功能，3秒内最多连接SSH一次
@@ -92,41 +85,43 @@ public class LiteSSHCaller {
 
         // ps -ef | grep FlyGoose | grep -v grep  | wc -l
         String cmdTemplate = "ps -ef | grep %arg | grep -v grep  | wc -l";
+        String numString = execGetResult(session, cmdTemplate.replace("%arg", feature));
+        if (numString == null) return -1;
+        numString = numString.trim();
+        if (numString.equals("")) return 0;
         try {
-            String numString = execGetResult(session, cmdTemplate.replace("%arg", feature));
-            if (numString == null) return -1;
-            numString = numString.trim();
-            if (numString.equals("")) return 0;
-            try {
-                int num = Integer.parseInt(numString);
-                lastQueryTime = new Date();
-                lastQueryResult = num;
-                return num;
-            } catch (NumberFormatException e) { return -1; }
-        } finally {
-            session.disconnect();
-        }
+            int num = Integer.parseInt(numString);
+            lastQueryTime = new Date();
+            lastQueryResult = num;
+            return num;
+        } catch (NumberFormatException e) { return -1; }
     }
 
+    // session池，提高响应速度
+    Session private_get_session;
+
     Session getSession() {
-        Session session = null;
+        if (private_get_session == null
+            || !private_get_session.isConnected()) {
+            private_get_session = null;
 
-        int port = 22;
+            int port = 22;
 
-        try {
-            JSch jsch = new JSch();
-            session = jsch.getSession(username, ip, port);
-            session.setPassword(password);
-            session.setUserInfo(new UserInfoClass());
-            var config = new Properties();
-            config.put("StrictHostKeyChecking", "no");
-            session.setConfig(config);
-            session.setTimeout(2000);
-            session.connect();
-        } catch (JSchException e) {
-            return null;
+            try {
+                JSch jsch = new JSch();
+                private_get_session = jsch.getSession(username, ip, port);
+                private_get_session.setPassword(password);
+                private_get_session.setUserInfo(new UserInfoClass());
+                var config = new Properties();
+                config.put("StrictHostKeyChecking", "no");
+                private_get_session.setConfig(config);
+                private_get_session.setTimeout(2000);
+                private_get_session.connect();
+            } catch (JSchException e) {
+                return null;
+            }
         }
-        return session;
+        return private_get_session;
     }
 
     String execGetResult(Session session, String cmd) {

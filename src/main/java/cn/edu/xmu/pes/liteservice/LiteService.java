@@ -196,9 +196,15 @@ public class LiteService {
         }
 
         response.setStatus(200);
-        response.setContentType("text/plain;charset=utf-8");
-        response.setHeader("content-disposition",(online==null?"attachment":"inline")+";fileName="
-                + URLEncoder.encode("report_"+fileindex+".txt", StandardCharsets.UTF_8));
+        if ("yes".equals(online)) {
+            response.setContentType("text/plain;charset=utf-8");
+        } else {
+            response.setContentType("application/download");
+            response.setHeader("content-disposition", "attachment;fileName="
+                    + URLEncoder.encode("report_" + fileindex + ".txt", StandardCharsets.UTF_8));
+            response.setHeader("Content-Transfer-Encoding","binary");
+        }
+
         response.getOutputStream().write(content);
 
     }

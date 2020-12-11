@@ -3,6 +3,7 @@
 
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1.2">
     <title>测试系统</title>
     <script src="https://cdn.jsdelivr.net/npm/vue/dist/vue.js"></script>
     <script src="https://unpkg.com/axios/dist/axios.js"></script>
@@ -11,157 +12,108 @@
 <body>
     <h1>OOAD - 提交测试</h1>
 
-    <div id="app">
-        <div>
-            组名（可任意取，用于标识测试ID）
-            <span v-if="isNull(gnamewarn)" style="font-size:small;color:red">字段不能为空</span><br>
-            <input v-model="gname" placeholder="组名"><br>
-            <h2>新测试</h2>
-            商城网关
-            <span v-if="isNull(mallwarn)" style="font-size:small;color:red">字段不正确</span><br>
-            <input v-model="mallgateway" placeholder="商城网关(ip:port)"><br>
-            <br>
-            管理员网关
-            <span v-if="isNull(adminwarn)" style="font-size:small;color:red">字段不正确</span><br>
-            <input v-model="admingateway" placeholder="管理员网关(ip:port)"><br>
-            <br>
-            <button v-on:click="newtask()">提交测试</button>
-            <br>
-            <p v-if="isNull(notice)"><b>通知</b> {{notice}}</p>
+    <div class="outbox">
+        <div id="app">
+            <div class="lspan">
+                组名（可任意取，用于标识测试ID）
+                <span v-if="!isNull(gnamewarn)" class="small red">{{gnamewarn}}</span><br>
+                <input v-model="gname" placeholder="组名"><br>
+                <h2>新测试</h2>
+                商城网关
+                <span v-if="!isNull(mallwarn)" class="small red">{{mallwarn}}</span><br>
+                <input v-model="mallgateway" placeholder="商城网关(ip:port)"><br>
+                <br>
+                管理员网关
+                <span v-if="!isNull(adminwarn)" class="small red">{{adminwarn}}</span><br>
+                <input v-model="admingateway" placeholder="管理员网关(ip:port)"><br>
+                <br>
+                <button v-on:click="newtask()"> 提交测试 </button>
+                <br>
+                <p v-if="!isNull(notice)"><b>通知</b> <span class="small">{{notice}}</span></p>
+            </div>
+            <div class="lspan">
+                <h2>进度</h2>
+                <button class="small" v-on:click="progress()"> 刷新进度 </button>
+                <p v-if="!isNull(progress_notice)"><b>通知</b> <span class="small">{{progress_notice}}</span></p>
+                <h3 v-if="status!=-2">测试任务状态</h3>
+                <p class="small" v-if="status==-1">正在查询...</p>
+                <p class="small" v-if="status==0">尚未提交任务</p>
+                <p class="small" v-if="status==1">测试任务正常运行或已结束</p>
+                <div v-if="status==1">
+                    <h3>文件列表</h3>
+                    <p v-if="status==1" v-for="(item, i) in files">
+                        <span>报告{{i}}</span>
+                        <a :href=item.download target="_blank">下载</a>
+                        <a :href=item.online target="_blank">在线查看</a>
+                    </p>
+                    <p v-if="filenum==0">文件列表为空</p>
+                </div>
+            </div>
         </div>
-        <div>
-            <h2>服务器负载&nbsp;&nbsp;<span style="font-size:small" v-on:click="getrunningnumber()">[刷新]</span></h2>
-            <p>当前并发量：{{running_number}}</p>
-            <p v-if="isNull(runnum_notice)"><b>通知</b> {{runnum_notice}}</p>
-        </div>
-        <div>
-            <h2>进度&nbsp;&nbsp;<span style="font-size:small" v-on:click="progress()">[刷新]</span></h2>
-            <p v-if="isNull(progress_notice)"><b>通知</b> {{progress_notice}}</p>
-            <h3>测试任务状态</h3>
-            <p v-if="status==-2">查询前请输入组名</p>
-            <p v-if="status==-1">正在查询...</p>
-            <p v-if="status==0">尚未提交任务</p>
-            <p v-if="status==1">任务正常运行/已终止</p>
-            <h3>文件列表</h3>
-            <h4 v-on:click="update()">手动刷新filelist</h4>
-            <p v-if="status==1" v-for="(item, i) in files">
-                <span>报告{{i}}</span>
-                <a :href=item.online>下载</a>
-                <a :href=item.download>在线查看</a>
-            </p>
-            <p v-if="status!=1">文件列表为空</p>
+        <div class="lspan" id="run_listener">
+            <h2>服务器负载&nbsp;&nbsp;</h2>
+            <p>当前并发量：{{result}} </p>
+            <p><button class="small" v-on:click="getrunningnumber()"> 刷新负载 </button></p>
         </div>
     </div>
+    <style>
+        .outbox {
+            padding: 10px;
+        }
+
+        .small {
+            font-size: small;
+        }
+
+        .red {
+            color: red;
+        }
+    </style>
     <script>
         function filehref(gname, i, yes) {
             return "/report?file=" + i + (yes ? "&online=yes" : "") + "&groupname=" + encodeURI(gname);
         }
         function IsNull(v) {
-            if (v == "" || v == null || v == undefined || v.trim() == "")
-                return true;
-            else
-                return false;
+            return (v == "" || v == null || v == undefined || v.trim() == "")
         }
-        var noticeChecking;
+        var pattern = /(25[0-5]|2[0-4]\d|[0-1]\d{2}|[1-9]?\d)\.(25[0-5]|2[0-4]\d|[0-1]\d{2}|[1-9]?\d)\.(25[0-5]|2[0-4]\d|[0-1]\d{2}|[1-9]?\d)\.(25[0-5]|2[0-4]\d|[0-1]\d{2}|[1-9]?\d):[1-9][0-9]{3,4}/
         new Vue({
             el: '#app',
             data: {
                 notice: "",
-                runnum_notice: "",
-                progress_notice: "",
 
-                gname: "xxxfdsf",
-                mallgateway: "192.168.40.1:8899",
-                admingateway: "192.168.40.1:8899",
+                gname: "",
+                gnamewarn: "",
+                mallgateway: "",
+                mallwarn: "",
+                admingateway: "",
+                adminwarn: "",
 
-                gnamewarn: "x",
-                mallwarn: "x",
-                adminwarn: "x",
-
-                status: -2,
+                progress_notice: "查询前请输入组名",
+                status: -2, // 0 no task, 1 running or task done or terminate.
                 filenum: 3,
                 files: [],
-
-                running_number: 0,
-            },
-            mounted() {
             },
             methods: {
                 isNull: function (v) {
                     return IsNull(v)
                 },
-                getrunningnumber: function() {
-                    this.runnum_notice = ""
-                    axios
-                        .post('/ajax/runningnumber', {
-                            timeout: 5000,
-                        })
-                        .then(response => {
-                            console.log('/ajax/runningnumber', response.data)
-                            this.running_number = response.data.number
-                        })
-                        .catch(error => {
-                            if (error.response==undefined) return
-                            this.runnum_notice = error.response.data.error != null
-                                ? error.response.data.error
-                                : "芜湖，前端写错了或者服务器挂了."
-                            console.log('/ajax/runningnumber', error.response.data)
-                        })
-                },
-                progress: function () {
-                    this.progress_notice = ""
-                    if (IsNull(this.gname)) {
-                        this.status = 2
-                        return
-                    }
-
-                    var newRequestParams = {
-                        groupname: this.gname,
-                    }
-                    axios
-                        .post('/ajax/progress', newRequestParams)
-                        .then(response => {
-                            console.log('/ajax/progress', response.data)
-                            this.status = response.data.status
-                            this.filenum = response.data.filenum
-                            this.update()
-                        })
-                        .catch(error => {
-                            if (error.response==undefined) return
-                            this.progress_notice = error.response.data.error != null
-                                ? error.response.data.error
-                                : "芜湖，前端写错了或者服务器挂了."
-                            console.log('/ajax/progress', error.response.data)
-                        })
-                },
-                update: function () {
-                    //console.log(this.files)
-                    this.files = []
-                    for (var i = 0; i < this.filenum; i++) {
-                        var model = {
-                            online: filehref(this.gname, i, true),
-                            download: filehref(this.gname, i, true)
-                        }
-                        this.files[i] = model
-                    }
-                },
                 newtask: function () {
                     this.notice = ""
                     if (IsNull(this.gname)) {
-                        this.gnamewarn = ""
+                        this.gnamewarn = "字段不能为空"
                         return;
-                    } else this.gnamewarn = "x"
+                    } else this.gnamewarn = ""
 
-                    var pattern = /(25[0-5]|2[0-4]\d|[0-1]\d{2}|[1-9]?\d)\.(25[0-5]|2[0-4]\d|[0-1]\d{2}|[1-9]?\d)\.(25[0-5]|2[0-4]\d|[0-1]\d{2}|[1-9]?\d)\.(25[0-5]|2[0-4]\d|[0-1]\d{2}|[1-9]?\d):[1-9][0-9]{3,4}/
                     if (IsNull(this.mallgateway) || this.mallgateway.search(pattern) != 0) {
-                        this.mallwarn = ""
+                        this.mallwarn = "字段不正确"
                         return;
-                    } else this.mallwarn = "x"
+                    } else this.mallwarn = ""
 
                     if (IsNull(this.admingateway) || this.admingateway.search(pattern) != 0) {
-                        this.adminwarn = ""
+                        this.adminwarn = "字段不正确"
                         return;
-                    } else this.adminwarn = "x"
+                    } else this.adminwarn = ""
 
                     var newRequestParams = {
                         groupname: this.gname,
@@ -175,13 +127,84 @@
                             this.notice = response.data.info
                         })
                         .catch(error => {
-                            if (error.response==undefined) return
+                            if (error.response == undefined) return
                             this.notice = error.response.data.error != null
                                 ? error.response.data.error
                                 : "芜湖，前端写错了或者服务器挂了."
                             console.log('/ajax/newtask', error.response.data)
                         })
                 },
+                progress: function () {
+                    this.progress_notice = ""
+                    if (IsNull(this.gname)) {
+                        this.status = -2
+                        this.progress_notice = "查询前请输入组名"
+                        return
+                    }
+                    this.status = -1
+                    this.progress_notice = ""
+
+                    var newRequestParams = {
+                        groupname: this.gname,
+                    }
+                    axios
+                        .post('/ajax/progress', newRequestParams)
+                        .then(response => {
+                            console.log('/ajax/progress', response.data)
+                            this.status = response.data.status
+                            this.filenum = response.data.filenum
+                            this.update()
+                        })
+                        .catch(error => {
+                            if (error.response == undefined) return
+                            this.status = -2
+                            this.progress_notice = error.response.data.error != null
+                                ? error.response.data.error
+                                : "芜湖，前端写错了或者服务器挂了."
+                            console.log('/ajax/progress', error.response.data)
+                        })
+                },
+                update: function () {
+                    //console.log(this.files)
+                    this.files = []
+                    for (var i = 0; i < this.filenum; i++) {
+                        var model = {
+                            online: filehref(this.gname, i, true),
+                            download: filehref(this.gname, i, false)
+                        }
+                        this.files[i] = model
+                    }
+                },
+            },
+        })
+        new Vue({
+            el: '#run_listener',
+            data: {
+                result: "?",
+            },
+            methods: {
+                isNull: function (v) {
+                    return IsNull(v)
+                },
+                getrunningnumber: function () {
+                    this.result = "查询中..."
+                    axios
+                        .post('/ajax/runningnumber')
+                        .then(response => {
+                            console.log('/ajax/runningnumber', response.data)
+                            this.result = response.data.number
+                        })
+                        .catch(error => {
+                            if (error.response == undefined) return
+                            this.result = (error.response.data.error != null)
+                                ? error.response.data.error
+                                : "芜湖，前端写错了或者服务器挂了."
+                            console.log('/ajax/runningnumber', error.response.data)
+                        })
+                },
+            },
+            mounted: function () {
+                this.getrunningnumber()
             },
         })
     </script>
