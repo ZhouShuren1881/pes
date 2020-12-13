@@ -11,6 +11,12 @@
 </head>
 
 <body>
+    <div class="guidebar">
+        <span><a href="/">首页</a></span>
+        <span>&nbsp;&nbsp;&nbsp;</span>
+        <span><a href="/superadmin.html">管理员界面</a></span>
+    </div>
+
     <h1>OOAD - 提交测试</h1>
 
     <div class="outbox">
@@ -55,7 +61,7 @@
             </div>
         </div>
         <div class="lspan" id="run_listener">
-            <h2>服务器负载&nbsp;&nbsp;</h2>
+            <h2>服务器负载</h2>
             <p>当前并发量：{{result}} </p>
             <p><button class="small" v-on:click="getrunningnumber()"> 刷新负载 </button></p>
         </div>

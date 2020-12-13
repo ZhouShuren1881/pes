@@ -56,3 +56,17 @@ button {
     background-color: #F4F5F7;
     padding: 0.2em 0.4em 0.25em 0.4em;
 }
+
+.guidebar {
+    padding-left: 43px;
+    background-color: #24292E;
+}
+
+.guidebar a:link,
+.guidebar a:visited,
+.guidebar a:hover,
+.guidebar a:active {
+    font-weight: bold;
+    color: #FFFFFF;
+    text-decoration: none;
+}
