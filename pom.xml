@@ -10,7 +10,7 @@
     </parent>
     <groupId>cn.edu.xmu</groupId>
     <artifactId>pes</artifactId>
-    <version>3.0.2-hotfix</version>
+    <version>3.0.3-hotfix</version>
     <name>public examine server</name>
     <description>Public Maven Server for Code Test</description>
 
